@@ -5,9 +5,10 @@ import {
 } from "@aws-sdk/client-secrets-manager";
 import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
 
-const REGION = "us-east-2";
-const SECRET_NAME = "prod/qbo";
-const COMPANY_ID_PARAM = "/prod/qbo/company_id";
+// Configuration from environment variables with sensible defaults
+const REGION = process.env.AWS_REGION || "us-east-2";
+const SECRET_NAME = process.env.QBO_SECRET_NAME || "prod/qbo";
+const COMPANY_ID_PARAM = process.env.QBO_COMPANY_ID_PARAM || "/prod/qbo/company_id";
 
 export interface QBCredentials {
   client_id: string;

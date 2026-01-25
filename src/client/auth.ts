@@ -6,6 +6,9 @@ import { promisify } from "./promisify.js";
 import { clearLookupCache } from "./cache.js";
 import { isQBError } from "../types/index.js";
 
+// Sandbox mode for development/testing
+const useSandbox = process.env.QBO_SANDBOX === "true";
+
 // QuickBooks client and credentials state
 let qbo: QuickBooks | null = null;
 let credentials: QBCredentials | null = null;
@@ -49,7 +52,7 @@ export async function getClient(): Promise<QuickBooks> {
     credentials.access_token,
     false, // No OAuth 1.0 token secret for OAuth 2.0
     companyId,
-    false, // Use production (not sandbox)
+    useSandbox, // Use sandbox if QBO_SANDBOX=true
     false, // Debug mode off
     null,  // Use latest minor version
     "2.0", // OAuth 2.0
@@ -74,7 +77,7 @@ export async function getClient(): Promise<QuickBooks> {
     credentials.access_token,
     false,
     companyId,
-    false,
+    useSandbox,
     false, // Debug mode off
     null,
     "2.0",
