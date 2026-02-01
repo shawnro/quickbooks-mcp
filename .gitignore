@@ -11,8 +11,9 @@ dist/
 *.json.tmp
 data/
 
-# Claude Code local settings (user-specific)
+# Claude Code local settings and auto-generated files
 .claude/settings.local.json
+.claude/commands/CLAUDE.md
 
 # MCP registry tokens
 .mcpregistry_*
