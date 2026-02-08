@@ -7,12 +7,12 @@ import {
   getDepartmentCache,
 } from "../../client/index.js";
 import {
-  writeReport,
   validateAmount,
   sumCents,
   validateBalance,
   toDollars,
   formatDollars,
+  outputReport,
 } from "../../utils/index.js";
 
 interface JournalEntryLine {
@@ -253,9 +253,6 @@ export async function handleGetJournalEntry(
   };
   const qboUrl = `https://app.qbo.intuit.com/app/journal?txnId=${je.Id}`;
 
-  // Write full object to file
-  const filepath = writeReport(`journal-entry-${je.Id}`, je);
-
   // Format summary
   const lines: string[] = [
     'Journal Entry',
@@ -282,11 +279,8 @@ export async function handleGetJournalEntry(
 
   lines.push('');
   lines.push(`View in QuickBooks: ${qboUrl}`);
-  lines.push(`Full data: ${filepath}`);
 
-  return {
-    content: [{ type: "text", text: lines.join('\n') }],
-  };
+  return outputReport(`journal-entry-${je.Id}`, je, lines.join('\n'));
 }
 
 export async function handleEditJournalEntry(

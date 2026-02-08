@@ -2,7 +2,7 @@
 
 import QuickBooks from "node-quickbooks";
 import { getAccountCache } from "../../client/index.js";
-import { writeReport, toCents, formatDollars, sumCents } from "../../utils/index.js";
+import { toCents, formatDollars, sumCents, outputReport } from "../../utils/index.js";
 
 export async function handleListAccounts(
   client: QuickBooks,
@@ -23,9 +23,7 @@ export async function handleListAccounts(
     accounts = accounts.filter(a => a.AccountType === account_type);
   }
 
-  // Write filtered results to file
   const result = { QueryResponse: { Account: accounts } };
-  const filepath = writeReport("accounts", result);
 
   const accountTypes = [...new Set(accounts.map(a => a.AccountType))];
   // Use cents-based summation for accurate total
@@ -40,7 +38,5 @@ export async function handleListAccounts(
     ...accounts.slice(0, 10).map(a => `  ${a.AcctNum || "N/A"} - ${a.Name} (${a.AccountType}): ${a.CurrentBalance || 0}`)
   ].join("\n");
 
-  return {
-    content: [{ type: "text", text: `${summary}\n\nFull list: ${filepath}` }],
-  };
+  return outputReport("accounts", result, summary);
 }

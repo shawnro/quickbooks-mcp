@@ -6,7 +6,7 @@ import {
   getDepartmentCache,
   getAccountCache,
 } from "../../client/index.js";
-import { writeReport, toCents, sumCents, toDollars } from "../../utils/index.js";
+import { toCents, sumCents, toDollars, outputReport } from "../../utils/index.js";
 import { PaginationParams } from "../../types/index.js";
 import { paginatedQuery, extractAccountLines } from "../../query/index.js";
 import { TransactionLine } from "../../types/index.js";
@@ -232,9 +232,6 @@ export async function handleQueryAccountTransactions(
     groupedByTransaction
   };
 
-  // Write to file
-  const filepath = writeReport('account-transactions', reportData);
-
   // Build summary for display
   const formatCurrency = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -279,9 +276,5 @@ export async function handleQueryAccountTransactions(
     }
   }
 
-  summaryLines.push(`Full data: ${filepath}`);
-
-  return {
-    content: [{ type: "text", text: summaryLines.join('\n') }],
-  };
+  return outputReport('account-transactions', reportData, summaryLines.join('\n'));
 }

@@ -2,7 +2,7 @@
 
 import QuickBooks from "node-quickbooks";
 import { promisify, resolveDepartmentId } from "../../client/index.js";
-import { writeReport } from "../../utils/index.js";
+import { outputReport } from "../../utils/index.js";
 import { extractReportSummary } from "../../reports/index.js";
 import { QBReport } from "../../types/index.js";
 
@@ -29,13 +29,8 @@ export async function handleGetProfitLoss(
     client.reportProfitAndLoss(options, cb)
   ) as QBReport;
 
-  // Write full report to file, return summary
-  const filepath = writeReport("profit-loss", result);
   const summary = extractReportSummary(result, "Profit and Loss");
-
-  return {
-    content: [{ type: "text", text: `${summary}\n\nFull report: ${filepath}` }],
-  };
+  return outputReport("profit-loss", result, summary);
 }
 
 export async function handleGetBalanceSheet(
@@ -64,13 +59,8 @@ export async function handleGetBalanceSheet(
     client.reportBalanceSheet(options, cb)
   ) as QBReport;
 
-  // Write full report to file, return summary
-  const filepath = writeReport("balance-sheet", result);
   const summary = extractReportSummary(result, "Balance Sheet");
-
-  return {
-    content: [{ type: "text", text: `${summary}\n\nFull report: ${filepath}` }],
-  };
+  return outputReport("balance-sheet", result, summary);
 }
 
 export async function handleGetTrialBalance(
@@ -92,11 +82,6 @@ export async function handleGetTrialBalance(
     client.reportTrialBalance(options, cb)
   ) as QBReport;
 
-  // Write full report to file, return summary
-  const filepath = writeReport("trial-balance", result);
   const summary = extractReportSummary(result, "Trial Balance");
-
-  return {
-    content: [{ type: "text", text: `${summary}\n\nFull report: ${filepath}` }],
-  };
+  return outputReport("trial-balance", result, summary);
 }

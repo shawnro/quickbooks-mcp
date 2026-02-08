@@ -7,7 +7,7 @@ import {
   getDepartmentCache,
   getVendorCache,
 } from "../../client/index.js";
-import { writeReport, validateAmount, toDollars, formatDollars, sumCents } from "../../utils/index.js";
+import { validateAmount, toDollars, formatDollars, sumCents, outputReport } from "../../utils/index.js";
 
 interface CreateExpenseLine {
   account_id?: string;
@@ -265,9 +265,6 @@ export async function handleGetExpense(
   };
   const qboUrl = `https://app.qbo.intuit.com/app/expense?txnId=${expense.Id}`;
 
-  // Write full object to file
-  const filepath = writeReport(`expense-${expense.Id}`, expense);
-
   // Format summary
   const lines: string[] = [
     'Expense (Purchase)',
@@ -303,11 +300,8 @@ export async function handleGetExpense(
 
   lines.push('');
   lines.push(`View in QuickBooks: ${qboUrl}`);
-  lines.push(`Full data: ${filepath}`);
 
-  return {
-    content: [{ type: "text", text: lines.join('\n') }],
-  };
+  return outputReport(`expense-${expense.Id}`, expense, lines.join('\n'));
 }
 
 export async function handleEditExpense(

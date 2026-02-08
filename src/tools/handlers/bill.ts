@@ -8,7 +8,7 @@ import {
   getVendorCache,
   resolveVendor,
 } from "../../client/index.js";
-import { writeReport, validateAmount, toDollars, formatDollars, sumCents } from "../../utils/index.js";
+import { validateAmount, toDollars, formatDollars, sumCents, outputReport } from "../../utils/index.js";
 
 interface CreateBillLine {
   account_id?: string;
@@ -269,9 +269,6 @@ export async function handleGetBill(
   };
   const qboUrl = `https://app.qbo.intuit.com/app/bill?txnId=${bill.Id}`;
 
-  // Write full object to file
-  const filepath = writeReport(`bill-${bill.Id}`, bill);
-
   // Format summary
   const lines: string[] = [
     'Bill',
@@ -306,11 +303,8 @@ export async function handleGetBill(
 
   lines.push('');
   lines.push(`View in QuickBooks: ${qboUrl}`);
-  lines.push(`Full data: ${filepath}`);
 
-  return {
-    content: [{ type: "text", text: lines.join('\n') }],
-  };
+  return outputReport(`bill-${bill.Id}`, bill, lines.join('\n'));
 }
 
 export async function handleEditBill(

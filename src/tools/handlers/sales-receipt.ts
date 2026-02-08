@@ -8,7 +8,7 @@ import {
   resolveItem,
   resolveCustomer,
 } from "../../client/index.js";
-import { writeReport, validateAmount, toDollars, formatDollars, sumCents } from "../../utils/index.js";
+import { validateAmount, toDollars, formatDollars, sumCents, outputReport } from "../../utils/index.js";
 
 interface SalesReceiptLineChange {
   line_id?: string;
@@ -242,9 +242,6 @@ export async function handleGetSalesReceipt(
   };
   const qboUrl = `https://app.qbo.intuit.com/app/salesreceipt?txnId=${salesReceipt.Id}`;
 
-  // Write full object to file
-  const filepath = writeReport(`salesreceipt-${salesReceipt.Id}`, salesReceipt);
-
   // Format summary
   const lines: string[] = [
     'Sales Receipt',
@@ -278,11 +275,8 @@ export async function handleGetSalesReceipt(
 
   lines.push('');
   lines.push(`View in QuickBooks: ${qboUrl}`);
-  lines.push(`Full data: ${filepath}`);
 
-  return {
-    content: [{ type: "text", text: lines.join('\n') }],
-  };
+  return outputReport(`salesreceipt-${salesReceipt.Id}`, salesReceipt, lines.join('\n'));
 }
 
 export async function handleEditSalesReceipt(

@@ -1,7 +1,7 @@
 // Handler for query tool
 
 import QuickBooks from "node-quickbooks";
-import { writeReport, getQboUrl } from "../../utils/index.js";
+import { getQboUrl, outputReport } from "../../utils/index.js";
 import {
   parsePaginationFromQuery,
   paginatedQuery,
@@ -64,9 +64,6 @@ export async function handleQuery(
     }
   };
 
-  // Write full results to file
-  const filepath = writeReport(`query-${entity.toLowerCase()}`, result);
-
   // Build summary with pagination status
   const summaryLines = [
     `Query: ${entity}`,
@@ -91,9 +88,5 @@ export async function handleQuery(
     summaryLines.push(`Warning: Large result set (>${WARNING_THRESHOLD} records)`);
   }
 
-  summaryLines.push(`Full data: ${filepath}`);
-
-  return {
-    content: [{ type: "text", text: summaryLines.join("\n") }],
-  };
+  return outputReport(`query-${entity.toLowerCase()}`, result, summaryLines.join("\n"));
 }

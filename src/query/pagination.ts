@@ -3,6 +3,7 @@
 import QuickBooks from "node-quickbooks";
 import { PaginationParams, PaginatedQueryResult, QBQueryResponse } from "../types/index.js";
 import { promisify } from "../client/promisify.js";
+import { isHttpMode } from "../utils/output.js";
 
 // Pagination constants
 export const BATCH_SIZE = 1000;
@@ -33,7 +34,7 @@ function extractEntitiesFromResponse(result: unknown): { entityKey: string; enti
 
 // Parse pagination params from query string
 export function parsePaginationFromQuery(query: string): PaginationParams {
-  let maxResults = 1000; // Default
+  let maxResults = isHttpMode() ? 100 : 1000; // Lower default for HTTP (results go into context)
   let startPosition: number | null = null;
 
   // Extract MAXRESULTS

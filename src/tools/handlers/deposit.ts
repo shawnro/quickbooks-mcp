@@ -7,7 +7,7 @@ import {
   getDepartmentCache,
   getVendorCache,
 } from "../../client/index.js";
-import { writeReport, validateAmount, toDollars, formatDollars, toCents, sumCents } from "../../utils/index.js";
+import { validateAmount, toDollars, formatDollars, toCents, sumCents, outputReport } from "../../utils/index.js";
 import type { AccountCache, DepartmentCache, VendorCache } from "../../types/index.js";
 
 // --- Interfaces ---
@@ -271,9 +271,6 @@ export async function handleGetDeposit(
   ) as Deposit;
   const qboUrl = `https://app.qbo.intuit.com/app/deposit?txnId=${deposit.Id}`;
 
-  // Write full object to file
-  const filepath = writeReport(`deposit-${deposit.Id}`, deposit);
-
   // Format summary
   const lines: string[] = [
     'Deposit',
@@ -304,11 +301,8 @@ export async function handleGetDeposit(
 
   lines.push('');
   lines.push(`View in QuickBooks: ${qboUrl}`);
-  lines.push(`Full data: ${filepath}`);
 
-  return {
-    content: [{ type: "text", text: lines.join('\n') }],
-  };
+  return outputReport(`deposit-${deposit.Id}`, deposit, lines.join('\n'));
 }
 
 export async function handleEditDeposit(
