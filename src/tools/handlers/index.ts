@@ -18,4 +18,5 @@ export { handleCreateBill, handleGetBill, handleEditBill } from './bill.js';
 export { handleCreateExpense, handleGetExpense, handleEditExpense } from './expense.js';
 export { handleCreateSalesReceipt, handleGetSalesReceipt, handleEditSalesReceipt } from './sales-receipt.js';
 export { handleCreateDeposit, handleGetDeposit, handleEditDeposit } from './deposit.js';
+export { handleCreateCustomer, handleGetCustomer, handleEditCustomer } from './customer.js';
 export { handleAuthenticate } from './authenticate.js';

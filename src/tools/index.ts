@@ -25,6 +25,9 @@ import {
   handleCreateDeposit,
   handleGetDeposit,
   handleEditDeposit,
+  handleCreateCustomer,
+  handleGetCustomer,
+  handleEditCustomer,
   handleAuthenticate,
 } from "./handlers/index.js";
 
@@ -59,6 +62,9 @@ toolHandlers.set("edit_sales_receipt", (client, args) => handleEditSalesReceipt(
 toolHandlers.set("create_deposit", (client, args) => handleCreateDeposit(client, args as Parameters<typeof handleCreateDeposit>[1]));
 toolHandlers.set("get_deposit", (client, args) => handleGetDeposit(client, args as { id: string }));
 toolHandlers.set("edit_deposit", (client, args) => handleEditDeposit(client, args as Parameters<typeof handleEditDeposit>[1]));
+toolHandlers.set("create_customer", (client, args) => handleCreateCustomer(client, args as Parameters<typeof handleCreateCustomer>[1]));
+toolHandlers.set("get_customer", (client, args) => handleGetCustomer(client, args as { id: string }));
+toolHandlers.set("edit_customer", (client, args) => handleEditCustomer(client, args as Parameters<typeof handleEditCustomer>[1]));
 
 // Execute tool with auth retry logic
 export async function executeTool(

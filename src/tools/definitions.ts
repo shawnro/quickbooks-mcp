@@ -944,4 +944,210 @@ export const toolDefinitions = [
       required: ["id"],
     },
   },
+  {
+    name: "create_customer",
+    description: "Create a customer. Accepts name parts, contact info, and addresses. Returns customer details and a link to view in QuickBooks.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        display_name: {
+          type: "string",
+          description: "Primary display name (must be unique in QuickBooks)",
+        },
+        given_name: {
+          type: "string",
+          description: "First/given name (optional)",
+        },
+        middle_name: {
+          type: "string",
+          description: "Middle name (optional)",
+        },
+        family_name: {
+          type: "string",
+          description: "Last/family name (optional)",
+        },
+        suffix: {
+          type: "string",
+          description: "Name suffix, e.g., 'Jr.' (optional)",
+        },
+        company_name: {
+          type: "string",
+          description: "Company name (optional)",
+        },
+        email: {
+          type: "string",
+          description: "Primary email address (optional)",
+        },
+        phone: {
+          type: "string",
+          description: "Primary phone number (optional)",
+        },
+        mobile: {
+          type: "string",
+          description: "Mobile phone number (optional)",
+        },
+        bill_address: {
+          type: "object",
+          description: "Billing address (optional)",
+          properties: {
+            line1: { type: "string" },
+            line2: { type: "string" },
+            line3: { type: "string" },
+            line4: { type: "string" },
+            line5: { type: "string" },
+            city: { type: "string" },
+            country_sub_division_code: { type: "string", description: "State/province code" },
+            postal_code: { type: "string" },
+            country: { type: "string" },
+            lat: { type: "string" },
+            long: { type: "string" },
+          },
+        },
+        ship_address: {
+          type: "object",
+          description: "Shipping address (optional, same shape as bill_address)",
+          properties: {
+            line1: { type: "string" },
+            line2: { type: "string" },
+            line3: { type: "string" },
+            line4: { type: "string" },
+            line5: { type: "string" },
+            city: { type: "string" },
+            country_sub_division_code: { type: "string", description: "State/province code" },
+            postal_code: { type: "string" },
+            country: { type: "string" },
+            lat: { type: "string" },
+            long: { type: "string" },
+          },
+        },
+        notes: {
+          type: "string",
+          description: "Notes about the customer (optional)",
+        },
+        taxable: {
+          type: "boolean",
+          description: "Whether the customer is taxable (optional)",
+        },
+        draft: {
+          type: "boolean",
+          description: "If true, validate and show preview without creating (default: true)",
+        },
+      },
+      required: ["display_name"],
+    },
+  },
+  {
+    name: "get_customer",
+    description: "Fetch a single customer by ID with full details including SyncToken (needed for edits). Returns name, contact info, addresses, balance, and active status.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: "The customer ID",
+        },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "edit_customer",
+    description: "Modify an existing customer. Can update name, contact info, addresses, notes, taxable status, and active status. Set active=false to deactivate (QuickBooks equivalent of delete).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: "Customer ID to edit",
+        },
+        display_name: {
+          type: "string",
+          description: "New display name (must be unique in QuickBooks)",
+        },
+        given_name: {
+          type: "string",
+          description: "New first/given name",
+        },
+        middle_name: {
+          type: "string",
+          description: "New middle name",
+        },
+        family_name: {
+          type: "string",
+          description: "New last/family name",
+        },
+        suffix: {
+          type: "string",
+          description: "New name suffix",
+        },
+        company_name: {
+          type: "string",
+          description: "New company name",
+        },
+        email: {
+          type: "string",
+          description: "New primary email address",
+        },
+        phone: {
+          type: "string",
+          description: "New primary phone number",
+        },
+        mobile: {
+          type: "string",
+          description: "New mobile phone number",
+        },
+        bill_address: {
+          type: "object",
+          description: "New billing address",
+          properties: {
+            line1: { type: "string" },
+            line2: { type: "string" },
+            line3: { type: "string" },
+            line4: { type: "string" },
+            line5: { type: "string" },
+            city: { type: "string" },
+            country_sub_division_code: { type: "string", description: "State/province code" },
+            postal_code: { type: "string" },
+            country: { type: "string" },
+            lat: { type: "string" },
+            long: { type: "string" },
+          },
+        },
+        ship_address: {
+          type: "object",
+          description: "New shipping address",
+          properties: {
+            line1: { type: "string" },
+            line2: { type: "string" },
+            line3: { type: "string" },
+            line4: { type: "string" },
+            line5: { type: "string" },
+            city: { type: "string" },
+            country_sub_division_code: { type: "string", description: "State/province code" },
+            postal_code: { type: "string" },
+            country: { type: "string" },
+            lat: { type: "string" },
+            long: { type: "string" },
+          },
+        },
+        notes: {
+          type: "string",
+          description: "New notes about the customer",
+        },
+        taxable: {
+          type: "boolean",
+          description: "Whether the customer is taxable",
+        },
+        active: {
+          type: "boolean",
+          description: "Set to false to deactivate customer (QuickBooks equivalent of delete)",
+        },
+        draft: {
+          type: "boolean",
+          description: "If true, validate and show preview without saving (default: true)",
+        },
+      },
+      required: ["id"],
+    },
+  },
 ];
