@@ -26,19 +26,21 @@ If no argument is provided, ask the user which bump type they want (patch, minor
 - Run `npm run build` and verify it completes without errors.
 - If the build fails, stop and show the errors. Do not proceed with publishing.
 
-### 4. Commit and tag
-
-- Stage `package.json` and `server.json`.
-- Commit with message: `v{new_version}`
-- Create a git tag: `v{new_version}`
-
-### 5. Publish to npm
+### 4. Publish to npm
 
 npm publish requires passkey authentication via browser. Do NOT run `npm publish` directly — it will fail waiting for interactive auth.
 
 Instead:
 - Tell the user to run `npm publish` themselves in their terminal.
 - Wait for the user to confirm it succeeded before continuing.
+
+### 5. Commit and tag
+
+Only proceed after the user confirms npm publish succeeded.
+
+- Stage `package.json`, `package-lock.json`, and `server.json`.
+- Commit with message: `v{new_version}`
+- Create a git tag: `v{new_version}`
 
 ### 6. Push to GitHub
 
