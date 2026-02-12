@@ -796,7 +796,7 @@ export const toolDefinitions = [
   },
   {
     name: "create_invoice",
-    description: "Create an invoice. Accepts item/customer/department names (will lookup IDs automatically). CustomerRef is required. Lines reference items (products/services) not accounts. Returns invoice details and a link to view in QuickBooks.",
+    description: "Create an invoice. Accepts item/customer/department names (will lookup IDs automatically). Either customer_name or customer_id is REQUIRED — invoices must have a customer. Lines use SalesItemLineDetail (product/service references, not accounts). Returns invoice details and a link to view in QuickBooks.",
     inputSchema: {
       type: "object",
       properties: {
@@ -826,7 +826,27 @@ export const toolDefinitions = [
         },
         memo: {
           type: "string",
-          description: "Private memo for the invoice",
+          description: "Private memo for the invoice (internal, not visible to customer)",
+        },
+        customer_memo: {
+          type: "string",
+          description: "Customer-facing message visible on the invoice",
+        },
+        bill_email: {
+          type: "string",
+          description: "Email address to send the invoice to. Required if you want QuickBooks to email the invoice.",
+        },
+        sales_term_ref: {
+          type: "string",
+          description: "Payment terms name (e.g., 'Net 30', 'Due on receipt'). Will be looked up to get ID.",
+        },
+        allow_online_credit_card_payment: {
+          type: "boolean",
+          description: "Allow customer to pay this invoice with a credit card online. Must be explicitly set — company defaults do not apply via API.",
+        },
+        allow_online_ach_payment: {
+          type: "boolean",
+          description: "Allow customer to pay this invoice via bank transfer (ACH) online. Must be explicitly set — company defaults do not apply via API.",
         },
         doc_number: {
           type: "string",
@@ -890,7 +910,7 @@ export const toolDefinitions = [
   },
   {
     name: "edit_invoice",
-    description: "Modify an existing invoice. Can update date, due date, memo, customer, department, and/or lines. For lines: provide line_id to update existing line, omit line_id to add new line (requires item_name), set delete=true to remove.",
+    description: "Modify an existing invoice. Can update date, due date, memo, customer, department, terms, email, online payment settings, and/or lines. For lines: provide line_id to update existing line, omit line_id to add new line (requires item_name), set delete=true to remove.",
     inputSchema: {
       type: "object",
       properties: {
@@ -909,6 +929,26 @@ export const toolDefinitions = [
         memo: {
           type: "string",
           description: "New private memo (optional)",
+        },
+        customer_memo: {
+          type: "string",
+          description: "New customer-facing message visible on the invoice",
+        },
+        bill_email: {
+          type: "string",
+          description: "New email address to send the invoice to",
+        },
+        sales_term_ref: {
+          type: "string",
+          description: "Payment terms name (e.g., 'Net 30'). Auto-resolved to ID.",
+        },
+        allow_online_credit_card_payment: {
+          type: "boolean",
+          description: "Allow customer to pay with credit card online",
+        },
+        allow_online_ach_payment: {
+          type: "boolean",
+          description: "Allow customer to pay via bank transfer (ACH) online",
         },
         customer_name: {
           type: "string",
@@ -1119,7 +1159,7 @@ export const toolDefinitions = [
   },
   {
     name: "create_customer",
-    description: "Create a customer. Accepts name parts, contact info, and addresses. Returns customer details and a link to view in QuickBooks.",
+    description: "Create a customer or sub-customer. Accepts name parts, contact info, addresses, and hierarchy settings. Use parent_ref to create sub-customers or jobs. Returns customer details and a link to view in QuickBooks.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1201,6 +1241,27 @@ export const toolDefinitions = [
           type: "boolean",
           description: "Whether the customer is taxable (optional)",
         },
+        parent_ref: {
+          type: "string",
+          description: "Parent customer name or ID to create a sub-customer or job. Will be looked up to get ID.",
+        },
+        job: {
+          type: "boolean",
+          description: "Mark this customer as a job (default: false). Jobs track work for a parent customer.",
+        },
+        bill_with_parent: {
+          type: "boolean",
+          description: "If true, invoices for this sub-customer are billed to the parent (default: false)",
+        },
+        preferred_delivery_method: {
+          type: "string",
+          enum: ["Print", "Email", "None"],
+          description: "How invoices are delivered: Print, Email, or None",
+        },
+        sales_term_ref: {
+          type: "string",
+          description: "Default payment terms name (e.g., 'Net 30'). Will be looked up to get ID.",
+        },
         draft: {
           type: "boolean",
           description: "If true, validate and show preview without creating (default: true)",
@@ -1211,7 +1272,7 @@ export const toolDefinitions = [
   },
   {
     name: "get_customer",
-    description: "Fetch a single customer by ID with full details including SyncToken (needed for edits). Returns name, contact info, addresses, balance, and active status.",
+    description: "Fetch a single customer by ID with full details including SyncToken (needed for edits). Returns name, contact info, addresses, balance, hierarchy (parent/sub-customer), and active status.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1225,7 +1286,7 @@ export const toolDefinitions = [
   },
   {
     name: "edit_customer",
-    description: "Modify an existing customer. Can update name, contact info, addresses, notes, taxable status, and active status. Set active=false to deactivate (QuickBooks equivalent of delete).",
+    description: "Modify an existing customer. Can update name, contact info, addresses, notes, taxable status, active status, hierarchy (parent/sub-customer), delivery method, and payment terms. Set active=false to deactivate (QuickBooks equivalent of delete).",
     inputSchema: {
       type: "object",
       properties: {
@@ -1314,6 +1375,27 @@ export const toolDefinitions = [
         active: {
           type: "boolean",
           description: "Set to false to deactivate customer (QuickBooks equivalent of delete)",
+        },
+        parent_ref: {
+          type: "string",
+          description: "Parent customer name or ID (makes this a sub-customer). Auto-resolved to ID.",
+        },
+        job: {
+          type: "boolean",
+          description: "Mark as a job (tracks work for a parent customer)",
+        },
+        bill_with_parent: {
+          type: "boolean",
+          description: "Bill this sub-customer with its parent",
+        },
+        preferred_delivery_method: {
+          type: "string",
+          enum: ["Print", "Email", "None"],
+          description: "How invoices are delivered: Print, Email, or None",
+        },
+        sales_term_ref: {
+          type: "string",
+          description: "Default payment terms name (e.g., 'Net 30'). Auto-resolved to ID.",
         },
         draft: {
           type: "boolean",

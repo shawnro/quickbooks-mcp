@@ -40,6 +40,11 @@ export async function handleCreateInvoice(
     department_name?: string;
     department_id?: string;
     memo?: string;
+    customer_memo?: string;
+    bill_email?: string;
+    sales_term_ref?: string;
+    allow_online_credit_card_payment?: boolean;
+    allow_online_ach_payment?: boolean;
     doc_number?: string;
     lines: CreateInvoiceLine[];
     draft?: boolean;
@@ -48,7 +53,9 @@ export async function handleCreateInvoice(
   const {
     txn_date, customer_name, customer_id,
     due_date, department_name, department_id,
-    memo, doc_number, lines, draft = true,
+    memo, customer_memo, bill_email, sales_term_ref,
+    allow_online_credit_card_payment, allow_online_ach_payment,
+    doc_number, lines, draft = true,
   } = args;
 
   if (!lines || lines.length === 0) {
@@ -89,6 +96,24 @@ export async function handleCreateInvoice(
         }
       }
     }
+  }
+
+  // Resolve sales term (optional)
+  let salesTermRef: { value: string; name: string } | undefined;
+  if (sales_term_ref) {
+    const terms = await promisify<{ QueryResponse: { Term?: Array<{ Id: string; Name: string }> } }>((cb) =>
+      (client as unknown as Record<string, Function>).findTerms(cb)
+    );
+    const termList = terms.QueryResponse?.Term || [];
+    const match = termList.find(t =>
+      t.Name.toLowerCase() === sales_term_ref.toLowerCase() ||
+      t.Id === sales_term_ref
+    );
+    if (!match) {
+      const available = termList.map(t => t.Name).join(', ');
+      throw new Error(`Term not found: "${sales_term_ref}". Available: ${available}`);
+    }
+    salesTermRef = { value: match.Id, name: match.Name };
   }
 
   // Resolve lines
@@ -135,7 +160,12 @@ export async function handleCreateInvoice(
     CustomerRef: customerRef,
     ...(due_date && { DueDate: due_date }),
     ...(departmentRef && { DepartmentRef: departmentRef }),
+    ...(salesTermRef && { SalesTermRef: salesTermRef }),
     ...(memo && { PrivateNote: memo }),
+    ...(customer_memo && { CustomerMemo: { value: customer_memo } }),
+    ...(bill_email && { BillEmail: { Address: bill_email } }),
+    ...(allow_online_credit_card_payment !== undefined && { AllowOnlineCreditCardPayment: allow_online_credit_card_payment }),
+    ...(allow_online_ach_payment !== undefined && { AllowOnlineACHPayment: allow_online_ach_payment }),
     ...(doc_number && { DocNumber: doc_number }),
     Line: resolvedLines.map((line) => ({
       Amount: line.amountDollars,
@@ -156,9 +186,14 @@ export async function handleCreateInvoice(
       `Customer: ${customerRef.name}`,
       `Date: ${txn_date}`,
       `Due Date: ${due_date || "(none)"}`,
+      `Terms: ${salesTermRef?.name || "(none)"}`,
       `Ref no.: ${doc_number || "(auto-assign)"}`,
       `Department: ${departmentRef?.name || "(none)"}`,
       `Memo: ${memo || "(none)"}`,
+      `Customer Memo: ${customer_memo || "(none)"}`,
+      `Bill Email: ${bill_email || "(none)"}`,
+      ...(allow_online_credit_card_payment !== undefined ? [`Online CC Payment: ${allow_online_credit_card_payment}`] : []),
+      ...(allow_online_ach_payment !== undefined ? [`Online ACH Payment: ${allow_online_ach_payment}`] : []),
       `Total: $${formatDollars(totalCents)}`,
       "",
       "Lines:",
@@ -217,6 +252,13 @@ export async function handleGetInvoice(
     Balance?: number;
     CustomerRef?: { value: string; name?: string };
     DepartmentRef?: { value: string; name?: string };
+    BillEmail?: { Address?: string };
+    CustomerMemo?: { value?: string };
+    EmailStatus?: string;
+    LinkedTxn?: Array<{ TxnId: string; TxnType: string }>;
+    AllowOnlineCreditCardPayment?: boolean;
+    AllowOnlineACHPayment?: boolean;
+    SalesTermRef?: { value: string; name?: string };
     Line?: Array<{
       Id: string;
       Amount: number;
@@ -245,12 +287,27 @@ export async function handleGetInvoice(
     `Due Date: ${invoice.DueDate || '(none)'}`,
     `Ref no.: ${invoice.DocNumber || '(none)'}`,
     `Department: ${invoice.DepartmentRef?.name || invoice.DepartmentRef?.value || '(none)'}`,
+    `Terms: ${invoice.SalesTermRef?.name || '(none)'}`,
     `Memo: ${invoice.PrivateNote || '(none)'}`,
+    `Customer Memo: ${invoice.CustomerMemo?.value || '(none)'}`,
+    `Bill Email: ${invoice.BillEmail?.Address || '(none)'}`,
+    `Email Status: ${invoice.EmailStatus || '(none)'}`,
+    `Online CC Payment: ${invoice.AllowOnlineCreditCardPayment ?? '(not set)'}`,
+    `Online ACH Payment: ${invoice.AllowOnlineACHPayment ?? '(not set)'}`,
     `Total: $${(invoice.TotalAmt || 0).toFixed(2)}`,
     `Balance: $${(invoice.Balance || 0).toFixed(2)}`,
-    '',
-    'Lines:',
   ];
+
+  if (invoice.LinkedTxn && invoice.LinkedTxn.length > 0) {
+    lines.push('');
+    lines.push('Linked Transactions:');
+    for (const linked of invoice.LinkedTxn) {
+      lines.push(`  ${linked.TxnType} #${linked.TxnId}`);
+    }
+  }
+
+  lines.push('');
+  lines.push('Lines:');
 
   for (const line of invoice.Line || []) {
     if (line.SalesItemLineDetail) {
@@ -279,13 +336,22 @@ export async function handleEditInvoice(
     txn_date?: string;
     due_date?: string;
     memo?: string;
+    customer_memo?: string;
+    bill_email?: string;
+    sales_term_ref?: string;
+    allow_online_credit_card_payment?: boolean;
+    allow_online_ach_payment?: boolean;
     customer_name?: string;
     department_name?: string;
     lines?: InvoiceLineChange[];
     draft?: boolean;
   }
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
-  const { id, txn_date, due_date, memo, customer_name, department_name, lines: lineChanges, draft = true } = args;
+  const {
+    id, txn_date, due_date, memo, customer_memo, bill_email,
+    sales_term_ref, allow_online_credit_card_payment, allow_online_ach_payment,
+    customer_name, department_name, lines: lineChanges, draft = true,
+  } = args;
 
   // Fetch current Invoice
   const current = await promisify<unknown>((cb) =>
@@ -298,6 +364,11 @@ export async function handleEditInvoice(
     PrivateNote?: string;
     CustomerRef?: { value: string; name?: string };
     DepartmentRef?: { value: string; name?: string };
+    CustomerMemo?: { value?: string };
+    BillEmail?: { Address?: string };
+    SalesTermRef?: { value: string; name?: string };
+    AllowOnlineCreditCardPayment?: boolean;
+    AllowOnlineACHPayment?: boolean;
     Line: Array<{
       Id: string;
       Amount: number;
@@ -336,6 +407,21 @@ export async function handleEditInvoice(
     if (current.DepartmentRef) {
       updated.DepartmentRef = current.DepartmentRef;
     }
+    if (current.CustomerMemo) {
+      updated.CustomerMemo = current.CustomerMemo;
+    }
+    if (current.BillEmail) {
+      updated.BillEmail = current.BillEmail;
+    }
+    if (current.SalesTermRef) {
+      updated.SalesTermRef = current.SalesTermRef;
+    }
+    if (current.AllowOnlineCreditCardPayment !== undefined) {
+      updated.AllowOnlineCreditCardPayment = current.AllowOnlineCreditCardPayment;
+    }
+    if (current.AllowOnlineACHPayment !== undefined) {
+      updated.AllowOnlineACHPayment = current.AllowOnlineACHPayment;
+    }
     // Copy lines and strip read-only fields
     updated.Line = current.Line.map(line => {
       const { LineNum, ...rest } = line as Record<string, unknown>;
@@ -346,6 +432,27 @@ export async function handleEditInvoice(
   if (txn_date !== undefined) updated.TxnDate = txn_date;
   if (due_date !== undefined) updated.DueDate = due_date;
   if (memo !== undefined) updated.PrivateNote = memo;
+  if (customer_memo !== undefined) updated.CustomerMemo = { value: customer_memo };
+  if (bill_email !== undefined) updated.BillEmail = { Address: bill_email };
+  if (allow_online_credit_card_payment !== undefined) updated.AllowOnlineCreditCardPayment = allow_online_credit_card_payment;
+  if (allow_online_ach_payment !== undefined) updated.AllowOnlineACHPayment = allow_online_ach_payment;
+
+  // Resolve sales term if provided
+  if (sales_term_ref !== undefined) {
+    const terms = await promisify<{ QueryResponse: { Term?: Array<{ Id: string; Name: string }> } }>((cb) =>
+      (client as unknown as Record<string, Function>).findTerms(cb)
+    );
+    const termList = terms.QueryResponse?.Term || [];
+    const match = termList.find(t =>
+      t.Name.toLowerCase() === sales_term_ref.toLowerCase() ||
+      t.Id === sales_term_ref
+    );
+    if (!match) {
+      const available = termList.map(t => t.Name).join(', ');
+      throw new Error(`Term not found: "${sales_term_ref}". Available: ${available}`);
+    }
+    updated.SalesTermRef = { value: match.Id, name: match.Name };
+  }
 
   // Resolve customer if provided
   if (customer_name !== undefined) {
@@ -457,6 +564,14 @@ export async function handleEditInvoice(
     if (txn_date !== undefined) previewLines.push(`  Date: ${current.TxnDate} → ${txn_date}`);
     if (due_date !== undefined) previewLines.push(`  Due Date: ${current.DueDate || '(none)'} → ${due_date}`);
     if (memo !== undefined) previewLines.push(`  Memo: ${current.PrivateNote || '(none)'} → ${memo}`);
+    if (customer_memo !== undefined) previewLines.push(`  Customer Memo: ${current.CustomerMemo?.value || '(none)'} → ${customer_memo}`);
+    if (bill_email !== undefined) previewLines.push(`  Bill Email: ${current.BillEmail?.Address || '(none)'} → ${bill_email}`);
+    if (sales_term_ref !== undefined) {
+      const newTerm = (updated.SalesTermRef as { name?: string })?.name || sales_term_ref;
+      previewLines.push(`  Terms: ${current.SalesTermRef?.name || '(none)'} → ${newTerm}`);
+    }
+    if (allow_online_credit_card_payment !== undefined) previewLines.push(`  Online CC Payment: ${current.AllowOnlineCreditCardPayment ?? '(not set)'} → ${allow_online_credit_card_payment}`);
+    if (allow_online_ach_payment !== undefined) previewLines.push(`  Online ACH Payment: ${current.AllowOnlineACHPayment ?? '(not set)'} → ${allow_online_ach_payment}`);
     if (customer_name !== undefined) {
       const newCust = (updated.CustomerRef as { name?: string })?.name || customer_name;
       previewLines.push(`  Customer: ${current.CustomerRef?.name || '(none)'} → ${newCust}`);

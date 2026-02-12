@@ -1,7 +1,7 @@
 // Handlers for customer tools (create, get, edit)
 
 import QuickBooks from "node-quickbooks";
-import { promisify } from "../../client/index.js";
+import { promisify, resolveCustomer } from "../../client/index.js";
 import { outputReport } from "../../utils/index.js";
 
 interface AddressInput {
@@ -82,6 +82,13 @@ interface QBCustomer {
   Taxable?: boolean;
   Active?: boolean;
   Balance?: number;
+  BalanceWithJobs?: number;
+  FullyQualifiedName?: string;
+  Job?: boolean;
+  BillWithParent?: boolean;
+  ParentRef?: { value: string; name?: string };
+  PreferredDeliveryMethod?: string;
+  SalesTermRef?: { value: string; name?: string };
   MetaData?: { CreateTime?: string; LastUpdatedTime?: string };
 }
 
@@ -101,13 +108,20 @@ export async function handleCreateCustomer(
     ship_address?: AddressInput;
     notes?: string;
     taxable?: boolean;
+    parent_ref?: string;
+    job?: boolean;
+    bill_with_parent?: boolean;
+    preferred_delivery_method?: string;
+    sales_term_ref?: string;
     draft?: boolean;
   }
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   const {
     display_name, given_name, middle_name, family_name, suffix,
     company_name, email, phone, mobile,
-    bill_address, ship_address, notes, taxable, draft = true,
+    bill_address, ship_address, notes, taxable,
+    parent_ref, job, bill_with_parent, preferred_delivery_method, sales_term_ref,
+    draft = true,
   } = args;
 
   // Build QB Customer object
@@ -126,6 +140,36 @@ export async function handleCreateCustomer(
   if (ship_address) customerObj.ShipAddr = buildQBAddress(ship_address);
   if (notes) customerObj.Notes = notes;
   if (taxable !== undefined) customerObj.Taxable = taxable;
+  if (job !== undefined) customerObj.Job = job;
+  if (bill_with_parent !== undefined) customerObj.BillWithParent = bill_with_parent;
+  if (preferred_delivery_method) customerObj.PreferredDeliveryMethod = preferred_delivery_method;
+
+  // Resolve parent customer (for subcustomers/jobs)
+  let parentName: string | undefined;
+  if (parent_ref) {
+    const parentCustomer = await resolveCustomer(client, parent_ref);
+    customerObj.ParentRef = parentCustomer;
+    parentName = parentCustomer.name;
+  }
+
+  // Resolve sales term
+  let salesTermName: string | undefined;
+  if (sales_term_ref) {
+    const terms = await promisify<{ QueryResponse: { Term?: Array<{ Id: string; Name: string }> } }>((cb) =>
+      (client as unknown as Record<string, Function>).findTerms(cb)
+    );
+    const termList = terms.QueryResponse?.Term || [];
+    const match = termList.find(t =>
+      t.Name.toLowerCase() === sales_term_ref.toLowerCase() ||
+      t.Id === sales_term_ref
+    );
+    if (!match) {
+      const available = termList.map(t => t.Name).join(', ');
+      throw new Error(`Term not found: "${sales_term_ref}". Available: ${available}`);
+    }
+    customerObj.SalesTermRef = { value: match.Id, name: match.Name };
+    salesTermName = match.Name;
+  }
 
   if (draft) {
     const preview = [
@@ -143,6 +187,11 @@ export async function handleCreateCustomer(
       ...formatAddress(ship_address ? buildQBAddress(ship_address) : undefined, "Shipping Address"),
       `Notes: ${notes || "(none)"}`,
       `Taxable: ${taxable !== undefined ? taxable : "(default)"}`,
+      ...(parentName ? [`Parent: ${parentName}`] : []),
+      ...(job !== undefined ? [`Job: ${job}`] : []),
+      ...(bill_with_parent !== undefined ? [`Bill With Parent: ${bill_with_parent}`] : []),
+      ...(preferred_delivery_method ? [`Preferred Delivery: ${preferred_delivery_method}`] : []),
+      ...(salesTermName ? [`Terms: ${salesTermName}`] : []),
       "",
       "Set draft=false to create this customer.",
     ].join("\n");
@@ -186,7 +235,12 @@ export async function handleGetCustomer(
     `ID: ${customer.Id}`,
     `SyncToken: ${customer.SyncToken}`,
     `Display Name: ${customer.DisplayName}`,
+    ...(customer.FullyQualifiedName && customer.FullyQualifiedName !== customer.DisplayName
+      ? [`Fully Qualified Name: ${customer.FullyQualifiedName}`] : []),
     `Active: ${customer.Active !== false}`,
+    ...(customer.Job ? ['Job: true'] : []),
+    ...(customer.ParentRef ? [`Parent: ${customer.ParentRef.name || customer.ParentRef.value}`] : []),
+    ...(customer.BillWithParent ? ['Bill With Parent: true'] : []),
   ];
 
   if (customer.GivenName || customer.MiddleName || customer.FamilyName || customer.Suffix) {
@@ -196,11 +250,16 @@ export async function handleGetCustomer(
   lines.push(`Email: ${customer.PrimaryEmailAddr?.Address || "(none)"}`);
   lines.push(`Phone: ${customer.PrimaryPhone?.FreeFormNumber || "(none)"}`);
   lines.push(`Mobile: ${customer.Mobile?.FreeFormNumber || "(none)"}`);
+  lines.push(`Preferred Delivery: ${customer.PreferredDeliveryMethod || "(none)"}`);
+  lines.push(`Terms: ${customer.SalesTermRef?.name || "(none)"}`);
   lines.push(...formatAddress(customer.BillAddr, "Billing Address"));
   lines.push(...formatAddress(customer.ShipAddr, "Shipping Address"));
   if (customer.Notes) lines.push(`Notes: ${customer.Notes}`);
   lines.push(`Taxable: ${customer.Taxable ?? "(default)"}`);
   lines.push(`Balance: $${(customer.Balance || 0).toFixed(2)}`);
+  if (customer.BalanceWithJobs !== undefined && customer.BalanceWithJobs !== customer.Balance) {
+    lines.push(`Balance (with jobs): $${customer.BalanceWithJobs.toFixed(2)}`);
+  }
   lines.push("");
   lines.push(`View in QuickBooks: ${qboUrl}`);
 
@@ -225,13 +284,20 @@ export async function handleEditCustomer(
     notes?: string;
     taxable?: boolean;
     active?: boolean;
+    parent_ref?: string;
+    job?: boolean;
+    bill_with_parent?: boolean;
+    preferred_delivery_method?: string;
+    sales_term_ref?: string;
     draft?: boolean;
   }
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   const {
     id, display_name, given_name, middle_name, family_name, suffix,
     company_name, email, phone, mobile,
-    bill_address, ship_address, notes, taxable, active, draft = true,
+    bill_address, ship_address, notes, taxable, active,
+    parent_ref, job, bill_with_parent, preferred_delivery_method, sales_term_ref,
+    draft = true,
   } = args;
 
   // Fetch current customer
@@ -260,6 +326,32 @@ export async function handleEditCustomer(
   if (notes !== undefined) updated.Notes = notes;
   if (taxable !== undefined) updated.Taxable = taxable;
   if (active !== undefined) updated.Active = active;
+  if (job !== undefined) updated.Job = job;
+  if (bill_with_parent !== undefined) updated.BillWithParent = bill_with_parent;
+  if (preferred_delivery_method !== undefined) updated.PreferredDeliveryMethod = preferred_delivery_method;
+
+  // Resolve parent customer if provided
+  if (parent_ref !== undefined) {
+    const parentCustomer = await resolveCustomer(client, parent_ref);
+    updated.ParentRef = parentCustomer;
+  }
+
+  // Resolve sales term if provided
+  if (sales_term_ref !== undefined) {
+    const terms = await promisify<{ QueryResponse: { Term?: Array<{ Id: string; Name: string }> } }>((cb) =>
+      (client as unknown as Record<string, Function>).findTerms(cb)
+    );
+    const termList = terms.QueryResponse?.Term || [];
+    const match = termList.find(t =>
+      t.Name.toLowerCase() === sales_term_ref.toLowerCase() ||
+      t.Id === sales_term_ref
+    );
+    if (!match) {
+      const available = termList.map(t => t.Name).join(', ');
+      throw new Error(`Term not found: "${sales_term_ref}". Available: ${available}`);
+    }
+    updated.SalesTermRef = { value: match.Id, name: match.Name };
+  }
 
   const qboUrl = `https://app.qbo.intuit.com/app/customerdetail?nameId=${id}`;
 
@@ -287,6 +379,17 @@ export async function handleEditCustomer(
     if (notes !== undefined) previewLines.push(`  Notes: ${current.Notes || "(none)"} → ${notes}`);
     if (taxable !== undefined) previewLines.push(`  Taxable: ${current.Taxable ?? "(default)"} → ${taxable}`);
     if (active !== undefined) previewLines.push(`  Active: ${current.Active !== false} → ${active}`);
+    if (parent_ref !== undefined) {
+      const newParent = (updated.ParentRef as { name?: string })?.name || parent_ref;
+      previewLines.push(`  Parent: ${current.ParentRef?.name || '(none)'} → ${newParent}`);
+    }
+    if (job !== undefined) previewLines.push(`  Job: ${current.Job ?? false} → ${job}`);
+    if (bill_with_parent !== undefined) previewLines.push(`  Bill With Parent: ${current.BillWithParent ?? false} → ${bill_with_parent}`);
+    if (preferred_delivery_method !== undefined) previewLines.push(`  Preferred Delivery: ${current.PreferredDeliveryMethod || '(none)'} → ${preferred_delivery_method}`);
+    if (sales_term_ref !== undefined) {
+      const newTerm = (updated.SalesTermRef as { name?: string })?.name || sales_term_ref;
+      previewLines.push(`  Terms: ${current.SalesTermRef?.name || '(none)'} → ${newTerm}`);
+    }
 
     previewLines.push("");
     previewLines.push("Set draft=false to apply these changes.");
