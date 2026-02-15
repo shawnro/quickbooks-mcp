@@ -6,7 +6,7 @@ import {
   getDepartmentCache,
   getAccountCache,
 } from "../../client/index.js";
-import { toCents, sumCents, toDollars, outputReport } from "../../utils/index.js";
+import { toCents, sumCents, toDollars, outputReport, isHttpMode } from "../../utils/index.js";
 import { PaginationParams } from "../../types/index.js";
 import { paginatedQuery, extractAccountLines } from "../../query/index.js";
 import { TransactionLine } from "../../types/index.js";
@@ -205,6 +205,23 @@ export async function handleQueryAccountTransactions(
     };
   }
 
+  // In HTTP mode, cap transaction detail to avoid context bloat.
+  // Summary is always computed from the full dataset.
+  const HTTP_TXN_LIMIT = 100;
+  const truncated = isHttpMode() && allLines.length > HTTP_TXN_LIMIT;
+
+  const outputLines = truncated ? allLines.slice(0, HTTP_TXN_LIMIT) : allLines;
+  const outputGrouped: typeof groupedByTransaction = {};
+  if (truncated) {
+    // Only include groups that have at least one line in the truncated set
+    const truncatedTxnKeys = new Set(outputLines.map(l => `${l.type}:${l.txnId}`));
+    for (const [key, value] of Object.entries(groupedByTransaction)) {
+      if (truncatedTxnKeys.has(key)) outputGrouped[key] = value;
+    }
+  } else {
+    Object.assign(outputGrouped, groupedByTransaction);
+  }
+
   const reportData = {
     account: {
       id: resolvedAccount.Id,
@@ -228,8 +245,9 @@ export async function handleQueryAccountTransactions(
       totalCredits,
       netChange
     },
-    transactions: allLines,
-    groupedByTransaction
+    transactions: outputLines,
+    groupedByTransaction: outputGrouped,
+    ...(truncated ? { truncatedAt: HTTP_TXN_LIMIT, totalLines: allLines.length } : {}),
   };
 
   // Build summary for display
@@ -248,6 +266,10 @@ export async function handleQueryAccountTransactions(
 
   summaryLines.push('');
   summaryLines.push(`Summary: ${groupedTransactions.length} transactions | Debits: ${formatCurrency(totalDebits)} | Credits: ${formatCurrency(totalCredits)} | Net: ${netChange >= 0 ? '' : '-'}${formatCurrency(netChange)}`);
+
+  if (truncated) {
+    summaryLines.push(`(Showing first ${HTTP_TXN_LIMIT} of ${allLines.length} transaction lines in detail)`);
+  }
 
   if (groupedTransactions.length > 0) {
     summaryLines.push('');
