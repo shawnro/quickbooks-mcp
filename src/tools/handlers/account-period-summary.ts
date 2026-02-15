@@ -42,17 +42,21 @@ interface PeriodSummary {
 
 /**
  * Parse a GeneralLedger report to extract period summary data.
- * The GL report structure has:
- * - A "Beginning Balance" row (type: "Data", first row typically)
- * - Individual transaction rows with Debit/Credit columns
- * - An "Total" summary row at the end with the ending balance
+ *
+ * GL report structure (nested sections):
+ *   Section (parent account) → Section (child account) → Data rows
+ *
+ * Columns: Date, Transaction Type, Num, Name, Memo/Description, Split, Amount, Balance
+ * - "Amount" column: negative = debit, positive = credit
+ * - "Balance" column: running balance (present on transaction rows, not on Summary)
+ * - "Beginning Balance" row: Balance column has opening balance
+ * - Summary row: Amount column has net activity total; Balance column is empty
+ * - Closing balance: Balance column of the last transaction row
  */
 function parseGLReport(report: GLReport): PeriodSummary {
   const columns = report.Columns?.Column ?? [];
 
-  // Find column indices for Debit, Credit, and Balance
-  const debitIdx = columns.findIndex(c => c.ColTitle === "Debit");
-  const creditIdx = columns.findIndex(c => c.ColTitle === "Credit");
+  const amountIdx = columns.findIndex(c => c.ColTitle === "Amount");
   const balanceIdx = columns.findIndex(c => c.ColTitle === "Balance");
 
   let openingBalance = 0;
@@ -65,50 +69,40 @@ function parseGLReport(report: GLReport): PeriodSummary {
 
   function processRows(rowList: GLRow[]): void {
     for (const row of rowList) {
-      // Check for nested sections (grouped by account)
+      // Recurse into nested sections (parent account → child account)
       if (row.Rows?.Row) {
         processRows(row.Rows.Row);
       }
 
-      const colData = row.ColData ?? row.Header?.ColData;
-      if (!colData) continue;
+      // Process Data rows (Beginning Balance + transaction rows)
+      if (row.type === "Data" && row.ColData) {
+        const colData = row.ColData;
+        const firstCol = colData[0]?.value ?? "";
 
-      const firstCol = colData[0]?.value ?? "";
+        if (firstCol === "Beginning Balance") {
+          if (balanceIdx >= 0 && colData[balanceIdx]?.value) {
+            openingBalance += parseFloat(colData[balanceIdx].value!) || 0;
+          }
+          continue;
+        }
 
-      if (firstCol === "Beginning Balance") {
-        if (balanceIdx >= 0 && colData[balanceIdx]) {
-          openingBalance = parseFloat(colData[balanceIdx].value ?? "0") || 0;
-        }
-        continue;
-      }
+        // Transaction row
+        const amount = amountIdx >= 0 && colData[amountIdx]?.value
+          ? parseFloat(colData[amountIdx].value!) || 0
+          : 0;
 
-      // The summary/total row contains the ending balance
-      if (row.Summary?.ColData) {
-        const summaryData = row.Summary.ColData;
-        if (balanceIdx >= 0 && summaryData[balanceIdx]) {
-          closingBalance = parseFloat(summaryData[balanceIdx].value ?? "0") || 0;
-        }
-        if (debitIdx >= 0 && summaryData[debitIdx]) {
-          const val = parseFloat(summaryData[debitIdx].value ?? "0") || 0;
-          if (val) totalDebits = val;
-        }
-        if (creditIdx >= 0 && summaryData[creditIdx]) {
-          const val = parseFloat(summaryData[creditIdx].value ?? "0") || 0;
-          if (val) totalCredits = val;
-        }
-        continue;
-      }
-
-      // Regular transaction rows
-      if (row.type === "Data" && firstCol !== "Beginning Balance") {
-        // Count as a transaction if it has a debit or credit value
-        const hasDebit = debitIdx >= 0 && colData[debitIdx]?.value && parseFloat(colData[debitIdx].value!) !== 0;
-        const hasCredit = creditIdx >= 0 && colData[creditIdx]?.value && parseFloat(colData[creditIdx].value!) !== 0;
-        if (hasDebit || hasCredit) {
+        if (amount !== 0) {
           transactionCount++;
-          // Accumulate debits/credits in case the summary row doesn't have totals
-          if (hasDebit) totalDebits += parseFloat(colData[debitIdx].value!) || 0;
-          if (hasCredit) totalCredits += parseFloat(colData[creditIdx].value!) || 0;
+          if (amount < 0) {
+            totalDebits += Math.abs(amount);
+          } else {
+            totalCredits += amount;
+          }
+        }
+
+        // Track running balance — last row's balance = closing balance
+        if (balanceIdx >= 0 && colData[balanceIdx]?.value) {
+          closingBalance = parseFloat(colData[balanceIdx].value!) || 0;
         }
       }
     }
@@ -116,68 +110,12 @@ function parseGLReport(report: GLReport): PeriodSummary {
 
   processRows(rows);
 
-  // If we found totals from the summary row, we double-counted with line-level accumulation.
-  // Re-parse: only use line-level if no summary totals found.
-  // Actually, let's re-do this more carefully: reset and parse in two passes.
-  // First pass: find summary totals. If found, use those. Otherwise accumulate from lines.
-  let summaryDebits: number | null = null;
-  let summaryCredits: number | null = null;
-  transactionCount = 0;
-  openingBalance = 0;
-  closingBalance = 0;
-
-  function processRowsFinal(rowList: GLRow[]): void {
-    for (const row of rowList) {
-      if (row.Rows?.Row) {
-        processRowsFinal(row.Rows.Row);
-      }
-
-      const colData = row.ColData ?? row.Header?.ColData;
-
-      if (colData) {
-        const firstCol = colData[0]?.value ?? "";
-        if (firstCol === "Beginning Balance") {
-          if (balanceIdx >= 0 && colData[balanceIdx]) {
-            openingBalance = parseFloat(colData[balanceIdx].value ?? "0") || 0;
-          }
-          continue;
-        }
-
-        // Count transaction rows
-        if (row.type === "Data" && firstCol !== "Beginning Balance") {
-          const hasDebit = debitIdx >= 0 && colData[debitIdx]?.value && parseFloat(colData[debitIdx].value!) !== 0;
-          const hasCredit = creditIdx >= 0 && colData[creditIdx]?.value && parseFloat(colData[creditIdx].value!) !== 0;
-          if (hasDebit || hasCredit) {
-            transactionCount++;
-          }
-        }
-      }
-
-      // Summary row has closing balance and totals
-      if (row.Summary?.ColData) {
-        const summaryData = row.Summary.ColData;
-        if (balanceIdx >= 0 && summaryData[balanceIdx]) {
-          closingBalance = parseFloat(summaryData[balanceIdx].value ?? "0") || 0;
-        }
-        if (debitIdx >= 0 && summaryData[debitIdx]) {
-          const val = parseFloat(summaryData[debitIdx].value ?? "0") || 0;
-          if (val) summaryDebits = val;
-        }
-        if (creditIdx >= 0 && summaryData[creditIdx]) {
-          const val = parseFloat(summaryData[creditIdx].value ?? "0") || 0;
-          if (val) summaryCredits = val;
-        }
-      }
-    }
+  // If no transactions, closing = opening
+  if (transactionCount === 0) {
+    closingBalance = openingBalance;
   }
 
-  processRowsFinal(rows);
-
-  // Use summary totals if available
-  totalDebits = summaryDebits ?? totalDebits;
-  totalCredits = summaryCredits ?? totalCredits;
-
-  const netActivity = totalDebits - totalCredits;
+  const netActivity = totalCredits - totalDebits;
 
   return {
     openingBalance,
