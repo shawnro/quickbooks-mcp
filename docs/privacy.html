@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — QuickBooks MCP Server</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+    h1 { border-bottom: 1px solid #e1e4e8; padding-bottom: 8px; }
+    h2 { margin-top: 28px; }
+    a { color: #0366d6; }
+    footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e1e4e8; font-size: 0.85em; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Privacy Policy</h1>
+  <p><strong>Effective date:</strong> April 12, 2026</p>
+  <p><strong>Application:</strong> QuickBooks MCP Server ("the App")</p>
+
+  <h2>Overview</h2>
+  <p>The App is a private integration tool that connects AI assistants to QuickBooks Online via the Model Context Protocol (MCP). It is operated solely by its owner for personal and business use. It is not a commercial product and is not listed on the QuickBooks App Store.</p>
+
+  <h2>Data Collection</h2>
+  <p>The App does not collect, store, or transmit personal information about end users. The App accesses QuickBooks Online company data solely on behalf of the authenticated account holder through Intuit's OAuth 2.0 authorization framework.</p>
+
+  <h2>Data Usage</h2>
+  <p>QuickBooks Online data accessed by the App is used exclusively for accounting operations requested by the authorized user. Data is not shared with third parties, used for marketing, or aggregated across accounts.</p>
+
+  <h2>Data Storage</h2>
+  <p>OAuth credentials (access tokens and refresh tokens) are stored securely using Azure Key Vault or AWS Secrets Manager depending on deployment configuration. Credentials are encrypted at rest and in transit. No QuickBooks financial data is permanently stored by the App.</p>
+
+  <h2>Third-Party Services</h2>
+  <p>The App integrates with:</p>
+  <ul>
+    <li><strong>Intuit QuickBooks Online API</strong> — to read and write accounting data</li>
+    <li><strong>Azure Key Vault</strong> or <strong>AWS Secrets Manager</strong> — to securely store OAuth credentials</li>
+  </ul>
+
+  <h2>Data Retention</h2>
+  <p>OAuth tokens are retained only as long as the connection to QuickBooks Online is active. When the connection is revoked, stored tokens are invalidated and no longer usable.</p>
+
+  <h2>User Rights</h2>
+  <p>The account holder may disconnect the App from their QuickBooks Online company at any time through their QuickBooks account settings, which immediately revokes the App's access.</p>
+
+  <h2>Contact</h2>
+  <p>For questions about this privacy policy, open an issue on the <a href="https://github.com/shawnro/quickbooks-mcp/issues">GitHub repository</a>.</p>
+
+  <footer><a href="index.html">&larr; Back</a> &middot; &copy; 2026 SR</footer>
+</body>
+</html>
